@@ -14,7 +14,10 @@ const Geo = (() => {
     'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter'
   ];
-  const NEAR_RADIUS = 90;          // m: kiek toli nuo parduotuvės dar laikome, kad esi joje
+  const NEAR_RADIUS = 40;          // m: bazinis atstumas iki parduotuvės taško žemėlapyje
+  const MAX_RADIUS = 90;           // m: daugiau niekada — kitaip „esi“ kaimyninėje parduotuvėje
+  const MAX_ACCURACY = 65;         // m: jei vieta netikslesnė, parduotuvės nespėliojame
+  const LEARN_MIN_DAYS = 2;        // išmokta vieta pradeda veikti tik panaudojus ją 2 skirtingas dienas
   const REUSE_DISTANCE = 60;       // m: jei pasislinkai mažiau, naudojame ankstesnį atsakymą
   const CACHE_MAX_AGE = 7 * 864e5; // 7 d.
   const CACHE_MAX_ITEMS = 40;
@@ -95,7 +98,7 @@ const Geo = (() => {
 
   function buildQuery(pos) {
     const { lat, lon } = pos;
-    const r = NEAR_RADIUS + 60; // šiek tiek plačiau, tikslų atstumą skaičiuojame patys
+    const r = MAX_RADIUS + 60; // šiek tiek plačiau, tikslų atstumą skaičiuojame patys
     return `[out:json][timeout:20];
 (
   nwr(around:${r},${lat},${lon})[shop];
@@ -197,40 +200,79 @@ out tags center;`;
 
   /* Kurioms kortelėms dabar tinka ši vieta.
      Grąžina Map: kortelės id → 'mall' | 'shop' | 'learned' */
+  // Ar vieta pakankamai tiksli, kad galėtume sakyti, kurioje parduotuvėje esi
+  function isAccurate(state = last) {
+    return !!state && (state.pos.accuracy || 0) <= MAX_ACCURACY;
+  }
+
+  const dayKey = t => new Date(t).toISOString().slice(0, 10);
+
+  // Išmokta vieta skaitosi tik tada, kai kortelė ten atidaryta bent 2 skirtingas dienas.
+  // Taip vienas atidarymas namuose (pvz. tikrinant naują kortelę) nieko nesugadina.
+  const placeIsLearned = pl => (pl.days ? pl.days.length : 0) >= LEARN_MIN_DAYS;
+
+  /* Kurioms kortelėms dabar tinka ši vieta.
+     Grąžina Map: kortelės id → 'shop' | 'mall' | 'learned' */
   function matchCards(cards, state = last) {
     const out = new Map();
-    if (!state) return out;
+    if (!state || !isAccurate(state)) return out;
     const { pos, places, malls } = state;
     const inMall = malls.length > 0;
-    const radius = Math.max(NEAR_RADIUS, Math.min(pos.accuracy || 0, 150));
+    const acc = pos.accuracy || 0;
+    const radius = Math.min(MAX_RADIUS, NEAR_RADIUS + acc);
 
+    // 1) Kiekvienai kortelei — artimiausia jos tinklo parduotuvė
+    const nearest = new Map(); // id → atstumas
     for (const card of cards) {
       const keys = keysForName(card.name);
-      let hit = null;
+      let best = Infinity, inSameMall = false;
       for (const p of places) {
         if (!nameMatches(keys, p.keys)) continue;
-        if (distance(pos, p) <= radius) { hit = 'shop'; break; }
-        if (inMall) hit = 'mall'; // parduotuvė tame pačiame prekybos centre
+        best = Math.min(best, distance(pos, p));
+        if (inMall) inSameMall = true;
       }
-      if (!hit) {
-        const learnR = Math.max(LEARN_RADIUS, Math.min(pos.accuracy || 0, 150));
-        if ((card.places || []).some(pl => distance(pos, pl) <= learnR)) hit = 'learned';
-      }
-      if (hit) out.set(card.id, hit);
+      if (best <= radius) nearest.set(card.id, best);
+      else if (inSameMall) out.set(card.id, 'mall');
+    }
+    // 2) Jei šalia kelios parduotuvės (pvz. dvi vaistinės greta), siūlome tik artimiausią (±20 m)
+    const dmin = Math.min(...nearest.values());
+    for (const [id, d] of nearest) if (d <= dmin + 20) out.set(id, 'shop');
+
+    // 3) Išmoktos vietos
+    const learnR = Math.min(MAX_RADIUS, LEARN_RADIUS / 2 + acc);
+    for (const card of cards) {
+      if (out.has(card.id)) continue;
+      if ((card.places || []).some(pl => placeIsLearned(pl) && distance(pos, pl) <= learnR)) out.set(card.id, 'learned');
     }
     return out;
   }
 
-  // Atidarius kortelę įsimename vietą (jei ji nauja ir pakankamai tiksli)
+  // Atidarius kortelę įsimename vietą (jei vieta tiksli ir kortelė nėra ką tik pridėta)
   function learn(card) {
     if (!last || !isEnabled()) return false;
     const { pos } = last;
-    if (Date.now() - pos.time > 3 * 60000 || pos.accuracy > 150) return false;
+    const now = Date.now();
+    if (now - pos.time > 3 * 60000 || pos.accuracy > 60) return false;
+    if (card.createdAt && now - card.createdAt < 15 * 60000) return false; // ką tik pridėta — tikriausiai tikrini namuose
+    const today = dayKey(now);
     const places = card.places || [];
-    if (places.some(pl => distance(pos, pl) < LEARN_RADIUS)) return false;
-    places.push({ lat: +pos.lat.toFixed(5), lon: +pos.lon.toFixed(5), time: Date.now() });
+    const near = places.find(pl => distance(pos, pl) < LEARN_RADIUS);
+    if (near) {
+      near.days = near.days || [];
+      if (!near.days.includes(today)) near.days = [...near.days, today].slice(-10);
+      near.time = now;
+    } else {
+      places.push({ lat: +pos.lat.toFixed(5), lon: +pos.lon.toFixed(5), time: now, days: [today] });
+    }
     card.places = places.slice(-MAX_PLACES_PER_CARD);
     return true;
+  }
+
+  // Pamiršti visas kortelės išmoktas vietas
+  function forget(card) {
+    const had = (card.places || []).length;
+    card.places = [];
+    return had;
   }
 
   function mallName(state = last) {
@@ -241,5 +283,5 @@ out tags center;`;
     return [...new Set(BRANDS.map(b => b[0]))].sort((a, b) => a.localeCompare(b, 'lt'));
   }
 
-  return { isEnabled, setEnabled, refresh, matchCards, learn, mallName, brandSuggestions, get last() { return last; }, _norm: norm, _buildQuery: buildQuery };
+  return { isEnabled, setEnabled, refresh, matchCards, learn, forget, isAccurate, mallName, brandSuggestions, get last() { return last; }, _norm: norm, _buildQuery: buildQuery };
 })();

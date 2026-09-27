@@ -131,7 +131,9 @@ function renderList() {
     const here = geoMatches.get(c.id);
     const tag = here ? `<span class="tag">${HERE_LABEL[here]}</span>` : '';
     return `
-      <li class="card-item${here ? ' here' : ''}" data-id="${c.id}">
+      <li class="card-row" data-id="${c.id}">
+      <button class="swipe-del" type="button" data-del="${c.id}" tabindex="-1">${TRASH_ICON}<span>Ištrinti</span></button>
+      <div class="card-item${here ? ' here' : ''}" data-id="${c.id}">
         <div class="badge" style="background:${bg};color:${textColorOn(bg)}">${escapeHtml(initials(c.name))}</div>
         <div class="card-main">
           <div class="card-name">${escapeHtml(c.name)}</div>
@@ -139,13 +141,97 @@ function renderList() {
         </div>
         ${tag}
         ${c.pinned ? '<span class="pin-mark" aria-label="Prisegta">' + PIN_ICON + '</span>' : ''}
+      </div>
       </li>`;
   }).join('');
 }
 
+const TRASH_ICON = '<svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg>';
+
 $('#card-list').addEventListener('click', e => {
-  const li = e.target.closest('.card-item');
-  if (li) openCard(li.dataset.id);
+  const del = e.target.closest('[data-del]');
+  if (del) { deleteCard(del.dataset.del); return; }
+  const row = e.target.closest('.card-row');
+  if (!row) return;
+  if (swipeJustEnded) return;                                   // tai buvo braukimas, ne paspaudimas
+  if (row.classList.contains('open')) { closeSwipes(); return; }
+  if (document.querySelector('.card-row.open')) { closeSwipes(); return; }
+  openCard(row.dataset.id);
+});
+
+// ---------- Braukimas kairėn → „Ištrinti“ ----------
+
+const SWIPE_OPEN = 96;
+let swipe = null;
+let swipeJustEnded = false;
+
+function closeSwipes(except) {
+  document.querySelectorAll('.card-row.open').forEach(r => {
+    if (r === except) return;
+    r.classList.remove('open');
+    r.querySelector('.card-item').style.transform = '';
+  });
+}
+
+$('#card-list').addEventListener('pointerdown', e => {
+  const row = e.target.closest('.card-row');
+  if (!row || e.target.closest('[data-del]')) return;
+  swipe = { row, x: e.clientX, y: e.clientY, dx: 0, active: false, base: row.classList.contains('open') ? -SWIPE_OPEN : 0 };
+});
+
+$('#card-list').addEventListener('pointermove', e => {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  if (!swipe.active) {
+    if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) { swipe.active = true; closeSwipes(swipe.row); swipe.row.classList.add('dragging'); }
+    else if (Math.abs(dy) > 10) { swipe = null; return; }
+    else return;
+  }
+  swipe.dx = Math.max(-SWIPE_OPEN - 30, Math.min(0, swipe.base + dx));
+  swipe.row.querySelector('.card-item').style.transform = `translateX(${swipe.dx}px)`;
+});
+
+function endSwipe() {
+  if (!swipe) return;
+  const { row, active, dx } = swipe;
+  swipe = null;
+  if (!active) return;
+  row.classList.remove('dragging');
+  const open = dx < -SWIPE_OPEN / 2;
+  row.classList.toggle('open', open);
+  row.querySelector('.card-item').style.transform = open ? `translateX(${-SWIPE_OPEN}px)` : '';
+  swipeJustEnded = true;
+  setTimeout(() => { swipeJustEnded = false; }, 50);
+}
+$('#card-list').addEventListener('pointerup', endSwipe);
+$('#card-list').addEventListener('pointercancel', endSwipe);
+
+// ---------- Trynimas su „Atšaukti“ ----------
+
+let undoTimer = null;
+let lastDeleted = null;
+
+function deleteCard(id) {
+  const index = cards.findIndex(c => c.id === id);
+  if (index < 0) return;
+  lastDeleted = { card: cards[index], index };
+  cards.splice(index, 1);
+  saveCards();
+  renderList();
+  const bar = $('#undo');
+  $('#undo-text').textContent = `„${lastDeleted.card.name}“ ištrinta`;
+  bar.classList.add('show');
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { bar.classList.remove('show'); lastDeleted = null; }, 6000);
+}
+
+$('#undo-btn').addEventListener('click', () => {
+  if (!lastDeleted) return;
+  cards.splice(Math.min(lastDeleted.index, cards.length), 0, lastDeleted.card);
+  lastDeleted = null;
+  saveCards();
+  renderList();
+  $('#undo').classList.remove('show');
 });
 
 // ---------- Kodo piešimas ----------
@@ -280,6 +366,9 @@ function openEditor(id, { replace = false } = {}) {
   $('#f-format').value = card ? card.format : 'CODE_128';
   selectedColor = card ? (card.color || colorFor(card.name)) : COLORS[0];
   $('#btn-delete').classList.toggle('hidden', !card);
+  const nPlaces = card && card.places ? card.places.length : 0;
+  $('#btn-forget').classList.toggle('hidden', !nPlaces);
+  $('#btn-forget').textContent = `Pamiršti išmoktas vietas (${nPlaces})`;
   $('#scan-choices').classList.toggle('hidden', !!card);
   setMsg('');
   renderSwatches();
@@ -309,13 +398,21 @@ $('#card-form').addEventListener('submit', e => {
   history.back();
 });
 
+$('#btn-forget').addEventListener('click', () => {
+  const card = cards.find(c => c.id === editingId);
+  if (!card) return;
+  Geo.forget(card);
+  saveCards();
+  $('#btn-forget').classList.add('hidden');
+  setMsg('Išmoktos vietos ištrintos. Kortelė vėl bus siūloma tik prie tikros parduotuvės.', 'ok');
+});
+
 $('#btn-delete').addEventListener('click', () => {
   if (!editingId) return;
-  const card = cards.find(c => c.id === editingId);
-  if (!confirm(`Ištrinti „${card.name}“ kortelę?`)) return;
-  cards = cards.filter(c => c.id !== editingId);
-  saveCards();
+  const id = editingId;
+  // Grįžtame į sąrašą (iš redagavimo arba kodo ekrano) ir ištriname su galimybe atšaukti
   history.back();
+  setTimeout(() => { deleteCard(id); show('view-list'); }, 80);
 });
 
 // ---------- Skenavimas ----------
@@ -530,11 +627,15 @@ async function runGeo() {
     geoMatches = Geo.matchCards(cards, state);
     renderList();
 
-    const names = cards.filter(c => geoMatches.has(c.id)).map(c => c.name);
+    const shops = cards.filter(c => geoMatches.get(c.id) === 'shop' || geoMatches.get(c.id) === 'mall').map(c => c.name);
+    const learned = cards.filter(c => geoMatches.get(c.id) === 'learned').map(c => c.name);
     const mall = Geo.mallName(state);
     const offline = state.source === 'none' ? ' (be interneto)' : '';
-    if (names.length && mall) setGeoChip(`${mall}: ${names.length} ${names.length === 1 ? 'kortelė' : 'kortelės'}`, 'active');
-    else if (names.length) setGeoChip(`Esi: ${names.join(', ')}`, 'active');
+    const acc = Math.round(state.pos.accuracy || 0);
+    if (!Geo.isAccurate(state)) setGeoChip(`Vieta netiksli (±${acc} m) — parduotuvės nespėlioju`, 'warn');
+    else if (shops.length && mall) setGeoChip(`${mall}: ${shops.length} ${shops.length === 1 ? 'kortelė' : 'kortelės'}`, 'active');
+    else if (shops.length) setGeoChip(`Esi: ${shops.join(', ')}`, 'active');
+    else if (learned.length) setGeoChip(`Čia dažnai naudoji: ${learned.join(', ')}`, 'active');
     else if (mall) setGeoChip(`${mall}: tavo kortelių čia nėra${offline}`);
     else setGeoChip(`Šalia parduotuvių su tavo kortelėmis nėra${offline}`);
   } catch (e) {

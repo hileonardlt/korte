@@ -115,6 +115,7 @@
       </form>
 
       <button type="submit" form="card-form" class="btn lime wide">Išsaugoti</button>
+      <button type="button" id="btn-forget" class="btn white wide hidden"></button>
       <button type="button" id="btn-delete" class="btn ghost-danger wide hidden">Ištrinti kortelę</button>
     </div>
   </section>
@@ -152,6 +153,7 @@
   <!-- Apatinis langas ir pranešimas -->
   <div id="sheet" class="sheet-backdrop hidden"><div class="sheet"><div class="sheet-grip"></div><div id="sheet-body"></div></div></div>
   <div id="toast" class="toast"></div>
+  <div id="undo" class="undo"><span id="undo-text"></span><button id="undo-btn" type="button">Atšaukti</button></div>
 
   <script src="lib/zxing.min.js"></script>
   <script src="lib/zxing-wasm.js"></script>
