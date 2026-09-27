@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="lt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Korte</title>
+  <meta name="theme-color" content="#EAE8E3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Korte">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/brand-icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 1. Kortelių sąrašas -->
+  <section id="view-list" class="view active">
+    <header class="topbar">
+      <h1 class="brand"><img src="icons/logo.svg" alt="Korte" width="120" height="25"></h1>
+      <button id="btn-menu" class="menu-btn" type="button" aria-label="Meniu">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      </button>
+    </header>
+
+    <div class="geo-bar">
+      <button id="geo-chip" class="geo-chip" type="button">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+        <span class="dot"></span>
+        <span id="geo-text"></span>
+      </button>
+      <button id="geo-off" class="link-btn hidden" type="button">Išjungti</button>
+    </div>
+
+    <p class="section-label" id="list-label">Visos kortelės</p>
+    <ul id="card-list" class="card-list"></ul>
+
+    <div id="empty" class="empty hidden">
+      <div class="empty-icon"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg></div>
+      <p class="empty-title">Kortelių dar nėra</p>
+      <p>Paspausk <b>+</b> ir nuskenuok pirmos kortelės kodą.</p>
+    </div>
+
+    <button id="btn-add" class="fab" aria-label="Pridėti kortelę">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </section>
+
+  <!-- 2. Kortelės pridėjimas / redagavimas -->
+  <section id="view-edit" class="view">
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Atgal">
+        <svg class="ic" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <h1 id="edit-title">Nauja kortelė</h1>
+    </header>
+
+    <div class="content">
+      <div id="scan-choices" class="scan-choices">
+        <button id="btn-scan" class="tile dark" type="button">
+          <span class="tile-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span>
+          <span class="tile-label">Skenuoti</span>
+          <span class="tile-sub">kamera</span>
+        </button>
+        <label class="tile">
+          <span class="tile-icon"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></span>
+          <span class="tile-label">Iš nuotraukos</span>
+          <span class="tile-sub">galerija</span>
+          <input id="file-photo" type="file" accept="image/*" hidden>
+        </label>
+      </div>
+
+      <div id="scanner" class="scanner hidden">
+        <video id="video" playsinline muted></video>
+        <div class="scan-frame"></div>
+        <button id="btn-scan-stop" class="scanner-cancel" type="button">Atšaukti</button>
+      </div>
+
+      <p id="scan-msg" class="msg hidden"></p>
+
+      <form id="card-form" class="panel" autocomplete="off">
+        <label class="field">
+          <span>Parduotuvė</span>
+          <input id="f-name" required maxlength="40" placeholder="pvz. Maxima" list="brand-list">
+          <datalist id="brand-list"></datalist>
+          <small>Rašyk taip, kaip vadinasi parduotuvė — tada programa ją atpažins žemėlapyje.</small>
+        </label>
+        <label class="field">
+          <span>Kortelės numeris</span>
+          <input id="f-code" required inputmode="text" placeholder="nuskenuok arba įvesk ranka">
+        </label>
+        <label class="field">
+          <span>Kodo tipas</span>
+          <select id="f-format">
+            <option value="CODE_128">Brūkšninis · Code 128</option>
+            <option value="EAN_13">Brūkšninis · EAN-13</option>
+            <option value="EAN_8">Brūkšninis · EAN-8</option>
+            <option value="UPC_A">Brūkšninis · UPC-A</option>
+            <option value="CODE_39">Brūkšninis · Code 39</option>
+            <option value="ITF">Brūkšninis · ITF</option>
+            <option value="CODABAR">Brūkšninis · Codabar</option>
+            <option value="QR_CODE">QR kodas</option>
+          </select>
+        </label>
+        <div class="field">
+          <span>Spalva</span>
+          <div id="f-colors" class="swatches"></div>
+        </div>
+
+        <div id="preview" class="preview"></div>
+      </form>
+
+      <button type="submit" form="card-form" class="btn lime wide">Išsaugoti</button>
+      <button type="button" id="btn-delete" class="btn ghost-danger wide hidden">Ištrinti kortelę</button>
+    </div>
+  </section>
+
+  <!-- 3. Kodo ekranas -->
+  <section id="view-card" class="view card-view">
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Uždaryti">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <h1 id="cv-name"></h1>
+      <button id="cv-pin" class="icon-btn pin-btn" aria-label="Prisegti">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+      </button>
+    </header>
+    <div class="code-area">
+      <div class="code-card">
+        <div id="cv-code" class="code-box"></div>
+        <p id="cv-number" class="code-number"></p>
+      </div>
+      <p class="code-hint">Parodyk kodą kasoje · ekranas neužges</p>
+    </div>
+    <div class="card-actions">
+      <button id="cv-share" class="btn white">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+        Dalintis
+      </button>
+      <button id="cv-edit" class="btn white">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>
+        Redaguoti
+      </button>
+    </div>
+  </section>
+
+  <!-- Apatinis langas ir pranešimas -->
+  <div id="sheet" class="sheet-backdrop hidden"><div class="sheet"><div class="sheet-grip"></div><div id="sheet-body"></div></div></div>
+  <div id="toast" class="toast"></div>
+
+  <script src="lib/zxing.min.js"></script>
+  <script src="lib/jsbarcode.min.js"></script>
+  <script src="lib/qrcode.js"></script>
+  <script src="geo.js"></script>
+  <script src="app.js"></script>
+  <script src="share.js"></script>
+</body>
+</html>
