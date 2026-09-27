@@ -119,13 +119,76 @@ document.querySelectorAll('[data-back]').forEach(btn =>
 const PIN_ICON = '<svg class="ic" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';
 const HERE_LABEL = { shop: 'Esi čia', mall: 'Šiame centre', learned: 'Čia naudojai' };
 
+const EYE_ICON = '<svg class="ic" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>';
+const useCount = c => Number.isFinite(c.useCount) ? c.useCount : (c.opens || []).length;
+
+// ---------- Paieška ----------
+let searchActive = false;
+let searchQuery = '';
+
+// Paieška be lietuviškų raidžių skirtumų: „zalia“ randa „Žalia stotelė“
+function searchRank(card, q) {
+  const n = Geo._norm(card.name);
+  if (n.startsWith(q)) return 0;                              // pavadinimo pradžia
+  if (n.split(' ').some(w => w.startsWith(q))) return 1;      // kurio nors žodžio pradžia
+  if (n.includes(q)) return 2;                                // bet kur
+  return -1;
+}
+
+function filteredCards() {
+  const all = sortedCards();
+  const q = Geo._norm(searchQuery);
+  if (!searchActive || !q) return all;
+  return all
+    .map((c, i) => ({ c, i, r: searchRank(c, q) }))
+    .filter(x => x.r >= 0 && (q.length > 1 || x.r <= 1)) // viena raidė — tik pavadinimo/žodžio pradžia
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map(x => x.c);
+}
+
+function openSearch() {
+  searchActive = true;
+  searchQuery = '';
+  const input = $('#search-input');
+  input.value = '';
+  $('#search-bar').classList.remove('hidden');
+  input.focus(); // iškart atidaro klaviatūrą (turi būti tame pačiame paspaudime)
+  document.body.classList.add('searching');
+  window.scrollTo(0, 0);
+  renderList();
+}
+
+function closeSearch() {
+  if (!searchActive) return;
+  searchActive = false;
+  searchQuery = '';
+  $('#search-input').blur();
+  $('#search-bar').classList.add('hidden');
+  document.body.classList.remove('searching');
+  renderList();
+}
+
+$('#btn-search').addEventListener('click', openSearch);
+$('#search-cancel').addEventListener('click', closeSearch);
+$('#search-input').addEventListener('input', e => { searchQuery = e.target.value; renderList(); window.scrollTo(0, 0); });
+$('#search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {                         // Enter atidaro pirmą rastą kortelę
+    const first = filteredCards()[0];
+    if (first) openCard(first.id);
+  } else if (e.key === 'Escape') closeSearch();
+});
+
 function renderList() {
   if (Geo.isEnabled() && Geo.last) geoMatches = Geo.matchCards(cards);
   const list = $('#card-list');
-  const items = sortedCards();
-  $('#list-label').textContent = geoMatches.size ? 'Siūlome pagal vietą, toliau — dažniausiai naudojamos' : 'Dažniausiai naudojamos viršuje';
-  $('#list-label').classList.toggle('hidden', items.length === 0);
-  $('#empty').classList.toggle('hidden', items.length > 0);
+  const items = filteredCards();
+  const q = searchActive && searchQuery.trim();
+  $('#list-label').textContent = q ? `Rasta: ${items.length}` : geoMatches.size ? 'Siūlome pagal vietą, toliau — dažniausiai naudojamos' : 'Dažniausiai naudojamos viršuje';
+  $('#list-label').classList.toggle('hidden', cards.length === 0 || (searchActive && !q));
+  $('#empty').classList.toggle('hidden', cards.length > 0);
+  $('#btn-search').classList.toggle('hidden', cards.length === 0 || searchActive);
+  $('#search-empty').classList.toggle('hidden', !(q && items.length === 0));
+  if (q && !items.length) $('#search-empty').textContent = `Kortelės „${searchQuery.trim()}“ nerasta`;
   list.innerHTML = items.map(c => {
     const bg = c.color || colorFor(c.name);
     const here = geoMatches.get(c.id);
@@ -137,7 +200,7 @@ function renderList() {
         <div class="badge" style="background:${bg};color:${textColorOn(bg)}">${escapeHtml(initials(c.name))}</div>
         <div class="card-main">
           <div class="card-name">${escapeHtml(c.name)}</div>
-          <div class="card-sub">${escapeHtml(c.code)}</div>
+          <div class="card-uses" aria-label="Panaudota ${useCount(c)} k.">${EYE_ICON}<span>${useCount(c)}</span></div>
         </div>
         ${tag}
         ${c.pinned ? '<span class="pin-mark" aria-label="Prisegta">' + PIN_ICON + '</span>' : ''}
@@ -290,7 +353,9 @@ function openCard(id) {
   if (!card) return;
   currentCardId = id;
 
+  card.useCount = useCount(card) + 1;
   card.opens = [...(card.opens || []), Date.now()].slice(-100);
+  if (searchActive) { searchActive = false; searchQuery = ''; $('#search-input').blur(); $('#search-bar').classList.add('hidden'); document.body.classList.remove('searching'); }
   Geo.learn(card); // įsimename vietą, kad kitą kartą kortelė iššoktų pati
   saveCards();
 

@@ -15,6 +15,7 @@ const Share = (() => {
     download: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>',
     upload: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>',
     link: '<svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+    plus: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     check: '<svg class="ic" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>'
   };
 
@@ -260,6 +261,7 @@ const Share = (() => {
         id: newId(), ...c, color: c.color || colorFor(c.name),
         pinned: !!raw.pinned,
         opens: Array.isArray(raw.opens) ? raw.opens.filter(Number.isFinite).slice(-100) : [],
+        useCount: Number.isFinite(raw.useCount) ? raw.useCount : undefined,
         places: Array.isArray(raw.places) ? raw.places.filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon)).slice(-30) : [],
         createdAt: Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now()
       });
@@ -278,6 +280,10 @@ const Share = (() => {
     openSheet(`
       <div class="sheet-head"><h2>Meniu</h2></div>
       <div class="menu">
+        <button class="menu-item dark" id="m-add">
+          <span class="menu-ic">${ICONS.plus}</span>
+          <span><b>Pridėti kortelę</b><small>nuskenuok kodą arba įvesk ranka</small></span>
+        </button>
         <button class="menu-item" id="m-share" ${n ? '' : 'disabled'}>
           <span class="menu-ic">${ICONS.users}</span>
           <span><b>Dalintis visomis kortelėmis</b><small>${n} ${n === 1 ? 'kortelė' : 'kortelės'} · nuoroda arba QR</small></span>
@@ -297,6 +303,7 @@ const Share = (() => {
         </label>
       </div>
     `);
+    $('#m-add').onclick = () => { closeSheet(); setTimeout(() => openEditor(null), 120); };
     $('#m-share').onclick = () => openShare(sortedCards());
     $('#m-receive').onclick = openPaste;
     $('#m-export').onclick = exportBackup;

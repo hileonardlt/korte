@@ -27,7 +27,15 @@
       </button>
     </header>
 
-    <div class="geo-bar">
+    <div id="search-bar" class="search-bar hidden">
+      <label class="search-field">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="search-input" type="search" placeholder="Ieškoti kortelės" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+      </label>
+      <button id="search-cancel" class="link-btn" type="button">Atšaukti</button>
+    </div>
+
+    <div class="geo-bar" id="geo-bar">
       <button id="geo-chip" class="geo-chip" type="button">
         <svg class="ic" viewBox="0 0 24 24"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
         <span class="dot"></span>
@@ -38,16 +46,22 @@
 
     <p class="section-label" id="list-label">Visos kortelės</p>
     <ul id="card-list" class="card-list"></ul>
+    <p id="search-empty" class="search-empty hidden"></p>
+
+    <div class="list-fade" aria-hidden="true"></div>
+    <button id="btn-search" class="fab" type="button" aria-label="Ieškoti kortelės">
+      <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    </button>
 
     <div id="empty" class="empty hidden">
       <div class="empty-icon"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg></div>
       <p class="empty-title">Kortelių dar nėra</p>
-      <p>Paspausk <b>+</b> ir nuskenuok pirmos kortelės kodą.</p>
+      <p>Nuskenuok pirmos kortelės kodą — tai užtruks kelias sekundes.</p>
+      <button id="btn-add" class="add-card" type="button">
+        <span class="add-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+        <span>Pridėti kortelę</span>
+      </button>
     </div>
-
-    <button id="btn-add" class="fab" aria-label="Pridėti kortelę">
-      <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
   </section>
 
   <!-- 2. Kortelės pridėjimas / redagavimas -->

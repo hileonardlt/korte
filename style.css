@@ -112,7 +112,7 @@ button { font-family: inherit; }
 .link-btn { font-size: 13px; font-weight: 500; color: var(--muted); background: none; border: 0; padding: 8px 6px; cursor: pointer; }
 
 /* ---------- Kortelių sąrašas ---------- */
-.card-list { list-style: none; margin: 0; padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+.card-list { list-style: none; margin: 0; padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
 .card-row { position: relative; border-radius: var(--r-md); touch-action: pan-y; }
 .card-row .card-item { position: relative; z-index: 1; transition: transform 0.2s ease-out; }
 .card-row.dragging .card-item { transition: none; }
@@ -127,15 +127,15 @@ button { font-family: inherit; }
 .card-item {
   display: flex; align-items: center; gap: 14px;
   background: var(--white); border-radius: var(--r-md);
-  padding: 14px 16px 14px 14px; cursor: pointer;
+  padding: 10px 14px 10px 10px; cursor: pointer;
   border: 1px solid var(--hairline); box-shadow: var(--shadow);
-  min-height: 72px; transition: transform 0.1s;
+  min-height: 58px; transition: transform 0.1s;
 }
 
 .badge {
-  flex: none; width: 46px; height: 46px; border-radius: var(--r-sm);
+  flex: none; width: 38px; height: 38px; border-radius: 10px;
   display: grid; place-items: center;
-  font-weight: 600; font-size: 15px; letter-spacing: 0.2px;
+  font-weight: 600; font-size: 13.5px; letter-spacing: 0.2px;
 }
 .card-main { flex: 1; min-width: 0; }
 .card-name { font-size: 15.5px; font-weight: 600; letter-spacing: -0.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -336,3 +336,50 @@ button { font-family: inherit; }
 .undo button { border: 0; background: var(--lime); color: var(--ink); font-weight: 600; font-size: 14px; padding: 9px 16px; border-radius: 999px; cursor: pointer; }
 .swipe-del { visibility: hidden; }
 .card-row.dragging .swipe-del, .card-row.open .swipe-del { visibility: visible; }
+
+/* Pridėti kortelę — juoda kortelė su pliusu (tuščiame sąraše ir meniu) */
+.add-card {
+  display: flex; align-items: center; gap: 12px; margin: 22px auto 0; padding: 12px 22px 12px 12px;
+  border: 0; border-radius: var(--r-md); background: var(--ink); color: var(--white);
+  font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 10px 28px rgba(23, 23, 23, 0.22);
+}
+.add-ic { width: 36px; height: 36px; border-radius: 10px; background: var(--lime); color: var(--ink); display: grid; place-items: center; }
+.add-ic .ic { stroke-width: 2.2; }
+.menu-item.dark { background: var(--ink); border-color: var(--ink); color: var(--white); }
+.menu-item.dark small { color: var(--faint); }
+.menu-item.dark .menu-ic { background: var(--lime); color: var(--ink); }
+.menu-item.dark .menu-ic .ic { stroke-width: 2.2; }
+.view { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+
+/* ---------- Naudojimo skaičius ---------- */
+.card-main { display: flex; flex-direction: column; justify-content: center; }
+.card-uses { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
+.card-uses .ic { width: 14px; height: 14px; stroke-width: 1.8; }
+.card-item.here .card-uses { color: var(--muted); }
+
+/* ---------- Paieška ---------- */
+.fab {
+  position: fixed; right: 22px; bottom: calc(26px + env(safe-area-inset-bottom)); z-index: 30;
+  width: 60px; height: 60px; border-radius: 30px; border: 0;
+  background: var(--lime); color: var(--ink);
+  display: grid; place-items: center; box-shadow: var(--shadow-lime); cursor: pointer;
+}
+.fab .ic { width: 24px; height: 24px; stroke-width: 2.2; }
+.list-fade {
+  position: fixed; left: 0; right: 0; bottom: 0; height: calc(190px + env(safe-area-inset-bottom)); z-index: 20;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(234, 232, 227, 0) 0%, rgba(234, 232, 227, 0.75) 45%, var(--canvas) 85%);
+}
+#view-list { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+body.searching .geo-bar { display: none; }
+body.searching .list-fade { height: 80px; }
+.search-bar { position: sticky; top: calc(70px + env(safe-area-inset-top)); z-index: 6; display: flex; align-items: center; gap: 6px; padding: 0 20px 10px; background: var(--canvas); }
+.search-field {
+  flex: 1; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 48px;
+  background: var(--white); border: 1.5px solid var(--ink); border-radius: 999px; box-shadow: var(--shadow);
+}
+.search-field .ic { width: 19px; height: 19px; color: var(--muted); }
+.search-field input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: inherit; font-size: 16px; color: var(--text); -webkit-appearance: none; appearance: none; }
+.search-field input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.search-empty { text-align: center; color: var(--muted); margin: 28px 20px; }
+.search-bar .link-btn { flex: none; padding: 8px 4px 8px 8px; font-size: 14px; color: var(--ink); }
