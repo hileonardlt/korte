@@ -242,13 +242,13 @@ const JSBARCODE_FORMAT = {
   CODE_39: 'CODE39', ITF: 'ITF', CODABAR: 'codabar'
 };
 
-function renderCode(container, code, format, { big = false } = {}) {
+function renderCode(container, code, format, { big = false, ecl = 'M' } = {}) {
   container.innerHTML = '';
   container.classList.toggle('qr', format === 'QR_CODE');
   if (!code) return;
 
   if (format === 'QR_CODE') {
-    const qr = qrcode(0, 'M');
+    const qr = qrcode(0, ['L', 'M', 'Q', 'H'].includes(ecl) ? ecl : 'M'); // klaidų taisymo lygis kaip originale
     qr.addData(code);
     qr.make();
     container.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
@@ -297,7 +297,7 @@ function openCard(id) {
   $('#cv-name').textContent = card.name;
   $('#cv-number').textContent = card.code;
   $('#cv-pin').classList.toggle('on', !!card.pinned);
-  renderCode($('#cv-code'), card.code, card.format, { big: true });
+  renderCode($('#cv-code'), card.code, card.format, { big: true, ecl: card.ecl });
   go('view-card');
   keepScreenOn();
 }
@@ -333,8 +333,17 @@ $('#f-colors').addEventListener('click', e => {
   renderSwatches();
 });
 
+// QR kodo klaidų taisymo lygis: iš nuskaityto originalo, kitaip — ankstesnis kortelės
+let scanned = null;
+function currentEcl() {
+  const code = $('#f-code').value.trim();
+  if (scanned && scanned.code === code && scanned.ecl) return scanned.ecl;
+  const card = editingId && cards.find(c => c.id === editingId);
+  return card && card.code === code ? card.ecl : undefined;
+}
+
 function updatePreview() {
-  renderCode($('#preview'), $('#f-code').value.trim(), $('#f-format').value);
+  renderCode($('#preview'), $('#f-code').value.trim(), $('#f-format').value, { ecl: currentEcl() });
 }
 
 $('#f-code').addEventListener('input', updatePreview);
@@ -357,6 +366,7 @@ function setMsg(text, kind) {
 
 function openEditor(id, { replace = false } = {}) {
   editingId = id || null;
+  scanned = null;
   userPickedColor = false;
   const card = id ? cards.find(c => c.id === id) : null;
 
@@ -385,13 +395,14 @@ $('#card-form').addEventListener('submit', e => {
   const name = $('#f-name').value.trim();
   const code = $('#f-code').value.trim();
   const format = $('#f-format').value;
+  const ecl = format === 'QR_CODE' ? currentEcl() : undefined;
   if (!name || !code) return;
 
   if (editingId) {
     const card = cards.find(c => c.id === editingId);
-    Object.assign(card, { name, code, format, color: selectedColor });
+    Object.assign(card, { name, code, format, color: selectedColor, ecl });
   } else {
-    cards.push({ id: newId(), name, code, format, color: selectedColor, pinned: false, opens: [], createdAt: Date.now() });
+    cards.push({ id: newId(), name, code, format, ecl, color: selectedColor, pinned: false, opens: [], createdAt: Date.now() });
   }
   saveCards();
   stopScan();
@@ -471,7 +482,7 @@ async function decodeCanvas(canvas) {
       const data = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height);
       const results = await ZXingWASM.readBarcodes(data, { formats: WASM_FORMATS, tryHarder: true, tryRotate: true, maxNumberOfSymbols: 1 });
       const r = results.find(x => x.isValid && plausible(x.text));
-      if (r) return { text: r.text, format: FORMAT_FROM_WASM[r.format] || 'CODE_128' };
+      if (r) return { text: r.text, format: FORMAT_FROM_WASM[r.format] || 'CODE_128', ecl: (r.ecLevel || '').trim().toUpperCase().slice(0, 1) };
       return null;
     } catch (e) { /* krentame į atsarginį */ }
   }
@@ -500,6 +511,7 @@ function applyResult(result) {
 
   $('#f-code').value = code;
   $('#f-format').value = format;
+  scanned = { code, ecl: ['L', 'M', 'Q', 'H'].includes(result.ecl) ? result.ecl : null };
   updatePreview();
   if (navigator.vibrate) navigator.vibrate(60);
   setMsg('✓ Kodas nuskaitytas. Patikrink, ar numeris sutampa su kortele, įrašyk parduotuvę ir išsaugok.', 'ok');

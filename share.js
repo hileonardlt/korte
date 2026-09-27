@@ -39,7 +39,7 @@ const Share = (() => {
   }
 
   function makeLink(list) {
-    const data = { v: 1, c: list.map(c => [c.name, c.code, c.format, c.color || '']) };
+    const data = { v: 1, c: list.map(c => [c.name, c.code, c.format, c.color || '', c.ecl || '']) };
     return appUrl() + PREFIX + toBase64Url(JSON.stringify(data));
   }
 
@@ -60,13 +60,14 @@ const Share = (() => {
   }
 
   function sanitize(item) {
-    const [name, code, format, color] = Array.isArray(item) ? item : [item.name, item.code, item.format, item.color];
+    const [name, code, format, color, ecl] = Array.isArray(item) ? item : [item.name, item.code, item.format, item.color, item.ecl];
     if (typeof name !== 'string' || typeof code !== 'string' || !name.trim() || !code.trim()) return null;
     return {
       name: name.trim().slice(0, 40),
       code: code.trim().slice(0, 300),
       format: FORMATS.includes(format) ? format : 'CODE_128',
-      color: /^#[0-9a-f]{6}$/i.test(color || '') ? color : null
+      color: /^#[0-9a-f]{6}$/i.test(color || '') ? color : null,
+      ecl: ['L', 'M', 'Q', 'H'].includes(ecl) ? ecl : undefined
     };
   }
 
@@ -193,7 +194,7 @@ const Share = (() => {
     btn.onclick = () => {
       const chosen = [...document.querySelectorAll('.imp-row input:checked')].map(i => incoming[+i.dataset.i]);
       for (const c of chosen) {
-        cards.push({ id: newId(), name: c.name, code: c.code, format: c.format, color: c.color || colorFor(c.name), pinned: false, opens: [], createdAt: Date.now() });
+        cards.push({ id: newId(), name: c.name, code: c.code, format: c.format, ecl: c.ecl, color: c.color || colorFor(c.name), pinned: false, opens: [], createdAt: Date.now() });
       }
       saveCards();
       closeSheet();
