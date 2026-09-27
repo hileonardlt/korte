@@ -1,8 +1,8 @@
 // Leidžia programai veikti be interneto. Pakeitus failus, padidink VERSION.
-const VERSION = 'korteles-v5';
+const VERSION = 'korteles-v6';
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'geo.js', 'share.js', 'manifest.webmanifest',
-  'lib/zxing.min.js', 'lib/jsbarcode.min.js', 'lib/qrcode.js',
+  'lib/zxing.min.js', 'lib/zxing-wasm.js', 'lib/zxing_reader.wasm', 'lib/jsbarcode.min.js', 'lib/qrcode.js',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/brand-icon.svg', 'icons/logo.svg', 'fonts/inter-latin-wght-normal.woff2', 'fonts/inter-latin-ext-wght-normal.woff2'
 ];
 

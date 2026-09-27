@@ -320,29 +320,77 @@ $('#btn-delete').addEventListener('click', () => {
 
 // ---------- Skenavimas ----------
 
-const SCAN_FORMATS = ['QR_CODE', 'EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'CODE_128', 'CODE_39', 'ITF', 'CODABAR'];
+// Pagrindinis skaitytuvas — zxing-wasm (ZXing C++ versija, daug tikslesnė).
+// Jei telefone jis nepasileistų, naudojame senesnį ZXing JS.
 
-function scanHints() {
+const WASM_FORMATS = ['QRCode', 'EAN13', 'EAN8', 'UPCA', 'UPCE', 'Code128', 'Code39', 'ITF', 'Codabar'];
+const FORMAT_FROM_WASM = {
+  QRCode: 'QR_CODE', EAN13: 'EAN_13', EAN8: 'EAN_8', UPCA: 'UPC_A', UPCE: 'CODE_128',
+  Code128: 'CODE_128', Code39: 'CODE_39', ITF: 'ITF', Codabar: 'CODABAR',
+  'QR Code': 'QR_CODE', 'EAN-13': 'EAN_13', 'EAN-8': 'EAN_8', 'UPC-A': 'UPC_A', 'UPC-E': 'CODE_128',
+  'Code 128': 'CODE_128', 'Code 39': 'CODE_39'
+};
+
+let wasmReady = null;
+function initWasm() {
+  if (wasmReady) return wasmReady;
+  wasmReady = (async () => {
+    if (!window.ZXingWASM || typeof WebAssembly === 'undefined') return false;
+    try {
+      ZXingWASM.prepareZXingModule({
+        overrides: { locateFile: (path, prefix) => path.endsWith('.wasm') ? 'lib/zxing_reader.wasm' : prefix + path },
+        fireImmediately: true
+      });
+      // bandomasis nuskaitymas, kad modulis tikrai užsikrautų
+      await ZXingWASM.readBarcodes(new ImageData(8, 8), { formats: ['QRCode'] });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  })();
+  return wasmReady;
+}
+initWasm();
+
+// Senasis skaitytuvas (atsarginis)
+const JS_FORMATS = ['QR_CODE', 'EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'CODE_128', 'CODE_39', 'ITF', 'CODABAR'];
+const jsDecoder = new ZXing.MultiFormatReader();
+(() => {
   const hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, SCAN_FORMATS.map(f => ZXing.BarcodeFormat[f]));
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, JS_FORMATS.map(f => ZXing.BarcodeFormat[f]));
   hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  return hints;
+  jsDecoder.setHints(hints);
+})();
+
+// Atmetame akivaizdžiai klaidingus nuskaitymus (valdymo simboliai, per trumpi kodai)
+function plausible(text) {
+  return typeof text === 'string' && text.length >= 3 && !/[\x00-\x1F\x7F]/.test(text);
 }
 
-// Ieško kodo drobėje (canvas). Grąžina rezultatą arba null.
-const decoder = new ZXing.MultiFormatReader();
-decoder.setHints(scanHints());
-function decodeCanvas(canvas) {
+/* Ieško kodo drobėje (canvas). Grąžina { text, format } arba null. */
+async function decodeCanvas(canvas) {
+  if (await initWasm()) {
+    try {
+      const data = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height);
+      const results = await ZXingWASM.readBarcodes(data, { formats: WASM_FORMATS, tryHarder: true, tryRotate: true, maxNumberOfSymbols: 1 });
+      const r = results.find(x => x.isValid && plausible(x.text));
+      if (r) return { text: r.text, format: FORMAT_FROM_WASM[r.format] || 'CODE_128' };
+      return null;
+    } catch (e) { /* krentame į atsarginį */ }
+  }
   try {
-    const source = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-    return decoder.decodeWithState(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source)));
+    const src = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+    const r = jsDecoder.decodeWithState(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(src)));
+    let format = ZXing.BarcodeFormat[r.getBarcodeFormat()];
+    if (format === 'UPC_E') format = 'CODE_128';
+    return plausible(r.getText()) ? { text: r.getText(), format } : null;
   } catch (e) {
-    return null; // kodo šiame kadre nėra
+    return null;
   }
 }
 
 function applyResult(result) {
-  const code = result.getText();
+  const code = result.text;
   // Šeimos nario QR kodas su kortelėmis
   if (Share.isImportText(code)) {
     if (navigator.vibrate) navigator.vibrate(60);
@@ -350,15 +398,14 @@ function applyResult(result) {
     setTimeout(() => Share.openImport(Share.parseLink(code)), 50);
     return;
   }
-  let format = ZXing.BarcodeFormat[result.getBarcodeFormat()];
-  if (format === 'UPC_E') format = 'CODE_128'; // UPC-E retas, piešiame kaip Code 128
+  let format = result.format;
   if (![...$('#f-format').options].some(o => o.value === format)) format = 'CODE_128';
 
   $('#f-code').value = code;
   $('#f-format').value = format;
   updatePreview();
   if (navigator.vibrate) navigator.vibrate(60);
-  setMsg('✓ Kodas nuskaitytas. Įrašyk parduotuvės pavadinimą ir išsaugok.', 'ok');
+  setMsg('✓ Kodas nuskaitytas. Patikrink, ar numeris sutampa su kortele, įrašyk parduotuvę ir išsaugok.', 'ok');
   $('#f-name').focus();
 }
 
@@ -375,7 +422,7 @@ async function startScan() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
     });
   } catch (e) {
     setMsg('Nepavyko įjungti kameros. Leisk naudoti kamerą naršyklės nustatymuose arba rinkis „Iš nuotraukos“.', 'err');
@@ -387,18 +434,22 @@ async function startScan() {
   $('#scan-choices').classList.add('hidden');
   try { await video.play(); } catch (e) {}
 
-  // Kas 150 ms paimame kadrą ir ieškome kodo
-  const tick = () => {
+  // Kas ~120 ms paimame kadrą. Kodą priimame tik tada, kai du kadrai iš eilės rodo tą patį —
+  // taip išvengiame klaidingų nuskaitymų.
+  let last = null;
+  const tick = async () => {
     if (!stream) return;
     if (video.videoWidth) {
-      const k = Math.min(1, 1000 / video.videoWidth);
+      const k = Math.min(1, 1280 / video.videoWidth);
       scanCanvas.width = Math.round(video.videoWidth * k);
       scanCanvas.height = Math.round(video.videoHeight * k);
       scanCanvas.getContext('2d', { willReadFrequently: true }).drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
-      const result = decodeCanvas(scanCanvas);
-      if (result) { stopScan(); applyResult(result); return; }
+      const result = await decodeCanvas(scanCanvas);
+      if (!stream) return;
+      if (result && last && result.text === last.text) { stopScan(); applyResult(result); return; }
+      last = result;
     }
-    scanTimer = setTimeout(tick, 150);
+    scanTimer = setTimeout(tick, 120);
   };
   tick();
 }
@@ -438,8 +489,12 @@ $('#file-photo').addEventListener('change', async e => {
   setMsg('Ieškau kodo nuotraukoje…');
   const url = URL.createObjectURL(file);
   try {
-    const canvas = await imageToCanvas(url, 1600);
-    const result = decodeCanvas(canvas);
+    // Bandome keliais dydžiais: kartais kodas randamas tik didesnėje ar mažesnėje nuotraukoje
+    let result = null;
+    for (const size of [2000, 1400, 3000, 1000]) {
+      result = await decodeCanvas(await imageToCanvas(url, size));
+      if (result) break;
+    }
     if (result) applyResult(result);
     else setMsg('Kodo nuotraukoje nepavyko rasti. Nufotografuok arčiau ir tiesiai arba įvesk numerį ranka.', 'err');
   } catch (err) {
