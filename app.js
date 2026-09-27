@@ -750,5 +750,18 @@ renderList();
 if (Geo.isEnabled()) runGeo(); else geoIdle();
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // Kai atsisiunčiama nauja versija, programa persikrauna pati (vieną kartą), kad iškart matytum naujieną
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      // grįžus į programą — patikriname, ar nėra naujos versijos
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    }).catch(() => {});
+  });
 }

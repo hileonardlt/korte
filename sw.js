@@ -1,5 +1,5 @@
 // Leidžia programai veikti be interneto. Pakeitus failus, padidink VERSION.
-const VERSION = 'korteles-v13';
+const VERSION = 'korteles-v14';
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'geo.js', 'share.js', 'manifest.webmanifest',
   'lib/zxing.min.js', 'lib/zxing-wasm.js', 'lib/zxing_reader.wasm', 'lib/jsbarcode.min.js', 'lib/qrcode.js',
@@ -7,7 +7,7 @@ const FILES = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' }))) /* visada švieži failai, ne iš naršyklės atminties */).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
