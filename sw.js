@@ -1,7 +1,7 @@
 // Leidžia programai veikti be interneto. Pakeitus failus, padidink VERSION.
-const VERSION = 'korteles-v14';
+const VERSION = 'korteles-v15';
 const FILES = [
-  './', 'index.html', 'style.css', 'app.js', 'geo.js', 'share.js', 'manifest.webmanifest',
+  './', 'index.html', 'style.css?v=15', 'app.js?v=15', 'geo.js?v=15', 'share.js?v=15', 'manifest.webmanifest',
   'lib/zxing.min.js', 'lib/zxing-wasm.js', 'lib/zxing_reader.wasm', 'lib/jsbarcode.min.js', 'lib/qrcode.js',
   'icons/korte-icon-180.png', 'icons/korte-icon-192.png', 'icons/korte-icon-512.png', 'icons/korte-icon-maskable-512.png', 'icons/brand-icon.svg', 'icons/logo.svg', 'fonts/inter-latin-wght-normal.woff2', 'fonts/inter-latin-ext-wght-normal.woff2'
 ];
@@ -39,10 +39,11 @@ self.addEventListener('fetch', e => {
   }
   e.respondWith(
     caches.open(VERSION).then(async cache => {
-      const cached = await cache.match(req, { ignoreSearch: true });
+      // Tikslus atitikmuo (su ?v=…): nauja versija niekada negaus senų failų
+      const cached = await cache.match(req);
       const fresh = fetch(req)
         .then(res => { if (res.ok) cache.put(req, res.clone()); return res; })
-        .catch(() => cached);
+        .catch(() => cached || cache.match(req, { ignoreSearch: true }));
       return cached || fresh;
     })
   );
