@@ -138,7 +138,8 @@ function searchRank(card, q) {
 function filteredCards() {
   const all = sortedCards();
   const q = Geo._norm(searchQuery);
-  if (!searchActive || !q) return all;
+  if (!searchActive) return all;
+  if (!q) return [];                                          // tuščia paieška — nerodome nieko
   return all
     .map((c, i) => ({ c, i, r: searchRank(c, q) }))
     .filter(x => x.r >= 0 && (q.length > 1 || x.r <= 1)) // viena raidė — tik pavadinimo/žodžio pradžia
@@ -187,8 +188,8 @@ function renderList() {
   $('#list-label').classList.toggle('hidden', cards.length === 0 || (searchActive && !q));
   $('#empty').classList.toggle('hidden', cards.length > 0);
   $('#btn-search').classList.toggle('hidden', cards.length === 0 || searchActive);
-  $('#search-empty').classList.toggle('hidden', !(q && items.length === 0));
-  if (q && !items.length) $('#search-empty').textContent = `Kortelės „${searchQuery.trim()}“ nerasta`;
+  $('#search-empty').classList.toggle('hidden', !searchActive || (q && items.length > 0));
+  if (searchActive) $('#search-empty').textContent = q ? `Kortelės „${searchQuery.trim()}“ nerasta` : 'Pradėk rašyti parduotuvės pavadinimą';
   list.innerHTML = items.map(c => {
     const bg = c.color || colorFor(c.name);
     const here = geoMatches.get(c.id);
@@ -199,11 +200,10 @@ function renderList() {
       <div class="card-item${here ? ' here' : ''}" data-id="${c.id}">
         <div class="badge" style="background:${bg};color:${textColorOn(bg)}">${escapeHtml(initials(c.name))}</div>
         <div class="card-main">
-          <div class="card-name">${escapeHtml(c.name)}</div>
-          <div class="card-uses" aria-label="Panaudota ${useCount(c)} k.">${EYE_ICON}<span>${useCount(c)}</span></div>
+          <div class="card-name"><span>${escapeHtml(c.name)}</span>${c.pinned ? '<span class="pin-mark" aria-label="Prisegta">' + PIN_ICON + '</span>' : ''}</div>
         </div>
+        <div class="card-uses" aria-label="Panaudota ${useCount(c)} k.">${EYE_ICON}<span>${useCount(c)}</span></div>
         ${tag}
-        ${c.pinned ? '<span class="pin-mark" aria-label="Prisegta">' + PIN_ICON + '</span>' : ''}
       </div>
       </li>`;
   }).join('');

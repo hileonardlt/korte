@@ -353,7 +353,7 @@ button { font-family: inherit; }
 
 /* ---------- Naudojimo skaičius ---------- */
 .card-main { display: flex; flex-direction: column; justify-content: center; }
-.card-uses { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
+.card-uses { flex: none; display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
 .card-uses .ic { width: 14px; height: 14px; stroke-width: 1.8; }
 .card-item.here .card-uses { color: var(--muted); }
 
@@ -376,10 +376,20 @@ body.searching .list-fade { height: 80px; }
 .search-bar { position: sticky; top: calc(70px + env(safe-area-inset-top)); z-index: 6; display: flex; align-items: center; gap: 6px; padding: 0 20px 10px; background: var(--canvas); }
 .search-field {
   flex: 1; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 48px;
-  background: var(--white); border: 1.5px solid var(--ink); border-radius: 999px; box-shadow: var(--shadow);
+  background: var(--white); border: 1px solid var(--hairline); border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 10px 30px rgba(23, 23, 23, 0.10);
+  transition: box-shadow 0.2s;
 }
+.search-field:focus-within { box-shadow: 0 1px 2px rgba(23, 23, 23, 0.05), 0 12px 36px rgba(23, 23, 23, 0.14); }
 .search-field .ic { width: 19px; height: 19px; color: var(--muted); }
 .search-field input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: inherit; font-size: 16px; color: var(--text); -webkit-appearance: none; appearance: none; }
 .search-field input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .search-empty { text-align: center; color: var(--muted); margin: 28px 20px; }
 .search-bar .link-btn { flex: none; padding: 8px 4px 8px 8px; font-size: 14px; color: var(--ink); }
+
+/* Prisegimo ženkliukas iškart po pavadinimo */
+.card-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.card-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.card-name .pin-mark { flex: none; color: var(--muted); }
+.card-name .pin-mark .ic { width: 15px; height: 15px; transform: rotate(35deg); }
+.card-item.here .card-name .pin-mark { color: var(--faint); }
